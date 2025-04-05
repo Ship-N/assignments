@@ -85,3 +85,56 @@ def compute_threshold(pos_patches, neg_patches, w):
             
 
     return thr
+
+
+def compute_threshold_improved(pos_patches, neg_patches, w):
+    """
+    Computes the optimal threshold that minimizes misclassification.
+
+    Parameters:
+    pos_patches (numpy array): Foreground patches.
+    neg_patches (numpy array): Background patches.
+    w (numpy array): The covariance filter.
+
+    Returns:
+    float: Optimal threshold for classification.
+    """
+    thr_arr = np.arange(-0.001, 0.001, 0.0001)
+    nbr_pos = len(pos_patches)
+
+    f1_arr = []
+    misclassified_result_arr = []
+
+    for temp in thr_arr:
+        pos_misclassified = 0
+        neg_misclassified = 0
+
+        for pos in pos_patches:
+            pos_similarity = np.sum(pos * w)
+            if pos_similarity < temp:
+                pos_misclassified += 1
+
+        for neg in neg_patches:
+            neg_similarity = np.sum(neg * w)
+            if neg_similarity > temp:
+                neg_misclassified += 1
+
+        fn = pos_misclassified
+        fp = neg_misclassified
+        tp = nbr_pos - fn
+
+        precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+        recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+
+        f1 = (2 * precision * recall) / (precision + recall)
+        f1_arr.append(f1)
+        misclassified_result_arr.append(pos_misclassified + neg_misclassified)
+
+
+    max_index = np.argmax(f1_arr)
+    thr = thr_arr[max_index]
+    misclassified_result = misclassified_result_arr[max_index]
+
+    return thr, misclassified_result
+
+# The original threshold was selected by minimizing the total number of misclassified examples. However, we did not differentiate between false positives and false negatives. Also, our filter is from the positive patches, which makes it easier to classify the positive examples than the negative ones. To improve the results, we try to use the F1-score as the evaluation metric, which balances precision and recall.

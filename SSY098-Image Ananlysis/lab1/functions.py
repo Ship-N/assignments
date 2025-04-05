@@ -1,5 +1,7 @@
 import numpy as np
 from PIL import Image
+from scipy.ndimage import rank_filter
+import cv2
 
 def create_covariance_filter(pos_patches):
     """
@@ -79,6 +81,49 @@ def compute_threshold(pos_patches, neg_patches, w):
 
     return thr, precision, recall, conf_matrix
 
+def compute_threshold_improved(pos_patches, neg_patches, w):
+    """
+    Computes the optimal threshold that minimizes misclassification.
+
+    Parameters:
+    pos_patches (numpy array): Foreground patches.
+    neg_patches (numpy array): Background patches.
+    w (numpy array): The covariance filter.
+
+    Returns:
+    float: Optimal threshold for classification.
+    """
+    pos_scores = np.array([np.sum(pos * w) for pos in pos_patches])
+    neg_scores = np.array([np.sum(neg * w) for neg in neg_patches])
+    all_scores = np.concatenate((pos_scores, neg_scores))
+
+    thr_arr = np.linspace(min(all_scores), max(all_scores), 1000)
+
+    misclassified_result_arr = []
+
+    for temp in thr_arr:
+        pos_misclassified = 0
+        neg_misclassified = 0
+
+        for pos in pos_scores:
+            if pos < temp:
+                pos_misclassified += 1
+
+        for neg in neg_scores:
+            if neg > temp:
+                neg_misclassified += 1
+
+        misclassified_result_arr.append(pos_misclassified + neg_misclassified)
+
+    min_index = np.argmin(misclassified_result_arr)
+    thr = thr_arr[min_index]
+    misclassified_result = misclassified_result_arr[min_index]
+
+    # print(thr_arr)
+    # print(misclassified_result_arr)
+
+    return thr, misclassified_result
+
 
 def read_as_grayscale(image_path):
     image = Image.open(image_path).convert('L')
@@ -88,3 +133,51 @@ def read_as_grayscale(image_path):
     image = image / 255
 
     return image
+
+
+def strict_local_maxima(response, threshold):
+    """
+    Computes the coordinates of all strict local maxima in the response image.
+
+    Parameters:
+    response (numpy array): Input response image.
+    threshold (float): Threshold for classification
+
+    Returns:
+    numpy array: 2 x n array with column coordinates in the first row
+                 and row coordinates in the second row.
+    """
+
+    nhood_size = (3, 3)
+    next_best = rank_filter(response, -2, size=nhood_size)  # Selecting the second highest pixel value from the neighborhood of each pixel.
+
+    # Your code here
+    mask = (response > next_best) & (response > threshold)
+    row_coords, col_coords = np.nonzero(mask)
+
+    return (col_coords, row_coords)
+
+
+def detector(image, w, thr):
+    """
+    Detects cell centers in an image using a linear classifier and non-maximum suppression.
+
+    Parameters:
+    image (numpy array): Input image
+    w (numpy array): The covariance filter
+    thr (float): Threshold for classification
+
+    Returns:
+    numpy array: Cell centers.
+    numpy array: Thresholded response image
+    """
+
+    # Your code here
+    result = cv2.filter2D(image, -1, w)
+
+    centers = strict_local_maxima(result, thr)
+
+    thresholded_response = np.zeros_like(result)
+    thresholded_response[result > thr] = 1
+
+    return centers, thresholded_response
