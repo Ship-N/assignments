@@ -2,6 +2,7 @@ import numpy as np
 from PIL import Image
 from scipy.ndimage import rank_filter
 import cv2
+from supplied import *
 
 def create_covariance_filter(pos_patches):
     """
@@ -22,7 +23,7 @@ def create_covariance_filter(pos_patches):
 
     w = w / nbr_pos
 
-    mean = w.mean()
+    mean = w.mean(axis=(0, 1), keepdims=True)
     w = (w - mean) / (w.shape[0] * w.shape[1])
     
     return w
@@ -100,6 +101,7 @@ def compute_threshold_improved(pos_patches, neg_patches, w):
     thr_arr = np.linspace(min(all_scores), max(all_scores), 1000)
 
     misclassified_result_arr = []
+    specific_misclassified_result_arr = []
 
     for temp in thr_arr:
         pos_misclassified = 0
@@ -114,15 +116,29 @@ def compute_threshold_improved(pos_patches, neg_patches, w):
                 neg_misclassified += 1
 
         misclassified_result_arr.append(pos_misclassified + neg_misclassified)
+        specific_misclassified_result_arr.append([pos_misclassified, neg_misclassified])
 
     min_index = np.argmin(misclassified_result_arr)
     thr = thr_arr[min_index]
-    misclassified_result = misclassified_result_arr[min_index]
+    # misclassified_result = misclassified_result_arr[min_index]
 
-    # print(thr_arr)
-    # print(misclassified_result_arr)
+    specific_misclassified_result = specific_misclassified_result_arr[min_index]
 
-    return thr, misclassified_result
+    nbr_pos = len(pos_patches)
+    nbr_neg = len(neg_patches)
+
+    fn = specific_misclassified_result[0]
+    fp = specific_misclassified_result[1]
+    tp = nbr_pos - fn
+    tn = nbr_neg - fp
+
+    precision = tp / (tp + fp)
+    recall = tp / (tp + fn)
+
+    conf_matrix = [[tp, fn],
+                   [fp, tn]]
+
+    return thr, precision, recall, conf_matrix
 
 
 def read_as_grayscale(image_path):
@@ -173,7 +189,15 @@ def detector(image, w, thr):
     """
 
     # Your code here
-    result = cv2.filter2D(image, -1, w)
+    if len(image.shape) == 3 and image.shape[2] == 3:
+        result = np.zeros(image.shape[:2])
+        for c in range(3):
+            channel_result = cv2.filter2D(image[:, :, c], -1, w)
+            result += channel_result
+
+        result = result / 3
+    else:
+        result = cv2.filter2D(image, -1, w)
 
     centers = strict_local_maxima(result, thr)
 
@@ -181,3 +205,38 @@ def detector(image, w, thr):
     thresholded_response[result > thr] = 1
 
     return centers, thresholded_response
+
+# Task 2:
+def read_image(image_path):
+
+    # Load the image
+    image = Image.open(image_path)
+
+    # Convert the image to a numpy array
+    image = np.array(image)
+
+    # Convert image to 0-1 range
+    image = image / 255
+
+    return image
+
+def classify_church(image_path, training_data):
+
+    keypoints, descriptors = extract_sift_features(image_path)
+    if descriptors is None:
+        return None
+
+
+    matches = match_descriptors(descriptors, training_data)
+    if len(matches) == 0:
+        return None
+
+
+    votes = [0] * len(training_data['names'])
+    for m in matches:
+        train_label = training_data['labels'][m.trainIdx]
+        votes[train_label] += 1
+
+
+    predicted_label = votes.index(max(votes))
+    return predicted_label
