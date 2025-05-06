@@ -31,9 +31,9 @@ def plot_matches(
     """
 
     match_mask = [[0, 0] for i in range(len(matches))]
-    for i, (m,n) in enumerate(matches):
-        if m.distance < max_ratio * n.distance:
-            match_mask[i] = [1, 0]
+    # for i, (m,n) in enumerate(matches):
+    #     if m.distance < max_ratio * n.distance:
+    #         match_mask[i] = [1, 0]
     
     plot_kwargs = {
         'matchColor': (0, 255, 0, 0.2),
