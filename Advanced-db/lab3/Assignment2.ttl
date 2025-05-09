@@ -39,6 +39,13 @@
                           rdfs:range :Division .
 
 
+###  http://www.example.org/university#belongsToProgramme
+:belongsToProgramme rdf:type owl:ObjectProperty ;
+                    owl:inverseOf :hasProgrammeCourse ;
+                    rdfs:domain :ProgrammeCourse ;
+                    rdfs:range :Programme .
+
+
 ###  http://www.example.org/university#directsProgramme
 :directsProgramme rdf:type owl:ObjectProperty ;
                   owl:inverseOf :hasDirector ;
