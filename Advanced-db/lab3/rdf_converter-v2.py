@@ -89,6 +89,7 @@ def convert_students(df):
     for _, row in df.iterrows():
         student_uri = uri("Student", row['studentId'])
         g.add((student_uri, RDF.type, EX.Student))
+
         g.add((student_uri, EX.studentId, Literal(row['studentId'], datatype=XSD.string)))
         g.add((student_uri, EX.studentName, Literal(row['studentName'], datatype=XSD.string)))
         g.add((student_uri, EX.year, Literal(row['year'], datatype=XSD.string)))
@@ -173,7 +174,7 @@ def convert_course_instances(df, plan_df):
         g.add((course_uri, EX.hasInstance, ci_uri))
 
 
-def convert_assigned_hours(df):
+def convert_assigned_hours(df, senior_teachers_ids, ta_ids):
     for _, row in df.iterrows():
         ah_uri = uri("AssignedHours", row['assignedId'])
         g.add((ah_uri, RDF.type, EX.AssignedHours))
@@ -181,18 +182,34 @@ def convert_assigned_hours(df):
         g.add((ah_uri, EX.academicYear, Literal(row['academicYear'], datatype=XSD.string)))
         g.add((ah_uri, EX.hours, Literal(int(row['hours']), datatype=XSD.integer)))
 
-        g.add((ah_uri, EX.assignedTo, uri("Teacher", row['teacherId'])))
         g.add((ah_uri, EX.forCourseInstance, uri("CourseInstance", row['instanceId'])))
 
-def convert_reported_hours(df):
+        if row['teacherId'] in senior_teachers_ids:
+            assigned_uri = uri("SeniorTeacher", row['teacherId'])
+        elif row['teacherId'] in ta_ids:
+            assigned_uri = uri("TeachingAssistant", row['teacherId'])
+        else:
+            assigned_uri = uri("Teacher", row['teacherId'])
+
+        g.add((ah_uri, EX.assignedTo, assigned_uri))
+
+def convert_reported_hours(df, senior_teachers_ids, ta_ids):
     for _, row in df.iterrows():
         rh_uri = uri("ReportedHours", row['reportedId'])
         g.add((rh_uri, RDF.type, EX.ReportedHours))
 
         g.add((rh_uri, EX.hours, Literal(int(row['hours']), datatype=XSD.integer)))
 
-        g.add((rh_uri, EX.reportedBy, uri("Teacher", row['teacherId'])))
         g.add((rh_uri, EX.forCourseInstance, uri("CourseInstance", row['instanceId'])))
+
+        if row['teacherId'] in senior_teachers_ids:
+            assigned_uri = uri("SeniorTeacher", row['teacherId'])
+        elif row['teacherId'] in ta_ids:
+            assigned_uri = uri("TeachingAssistant", row['teacherId'])
+        else:
+            assigned_uri = uri("Teacher", row['teacherId'])
+
+        g.add((rh_uri, EX.reportedBy, assigned_uri))
 
 # ======================
 # 主处理流程
@@ -202,8 +219,13 @@ data_dir = "./data"
 programmes_df = pd.read_csv(f"{data_dir}/Programmes.csv").rename(columns={"Programme code": "programmeCode", "Programme name": "programmeName"})
 courses_df = pd.read_csv(f"{data_dir}/Courses.csv").rename(columns={"Course code": "courseCode", "Course name": "courseName", "Credits": "credits", "Level": "level"})
 students_df = pd.read_csv(f"{data_dir}/Students.csv").rename(columns={"Student id": "studentId", "Student name": "studentName", "Year": "year", "Graduated": "graduated"})
+
 senior_teachers_df = pd.read_csv(f"{data_dir}/Senior_Teachers.csv").rename(columns={"Teacher id": "teacherId", "Teacher name": "teacherName"})
+senior_teachers_ids = set(senior_teachers_df['teacherId'])
+
 ta_df = pd.read_csv(f"{data_dir}/Teaching_Assistants.csv")
+ta_ids = set(ta_df['Teacher id'])
+
 programme_courses_df = pd.read_csv(f"{data_dir}/Programme_Courses.csv").rename(columns={"Programme code": "programmeCode", "Course": "courseCode", "Academic Year": "academicYear", "Course Type": "courseType", "Study Year": "studyYear"})
 
 registrations_df = pd.read_csv(f"{data_dir}/Registrations.csv").rename(columns={"Student id": "studentId", "Course Instance": "instanceId", "Grade": "grade", "Status": "status"})
@@ -227,8 +249,8 @@ convert_teaching_assistants(ta_df)
 convert_programme_courses(programme_courses_df)
 convert_registrations(registrations_df)
 convert_course_instances(instances_df, courses_planning_df)
-convert_assigned_hours(assigned_df)
-convert_reported_hours(reported_df)
+convert_assigned_hours(assigned_df, senior_teachers_ids, ta_ids)
+convert_reported_hours(reported_df, senior_teachers_ids, ta_ids)
 
 # 导出 TTL 文件
 g.serialize(destination="full_data.ttl", format="turtle")
