@@ -6,7 +6,6 @@ def affine_test_case(N: int):
     np.random.seed(42)
 
     pts = np.column_stack((
-        # np.random.randint(0, 11, size=N),
         np.random.uniform(0, 11, size=N),
         np.random.uniform(0, 11, size=N)
     )).T
@@ -52,8 +51,6 @@ def residual_lgths(A, t, pts, pts_tilde):
     pts_predicted = A @ pts + t
 
     residuals = pts_tilde - pts_predicted
-
-    # lgths = np.sqrt(np.sum(np.pow(residuals, 2), axis=0))
     lgths = np.sqrt(np.sum(residuals ** 2, axis=0))
 
     return lgths
