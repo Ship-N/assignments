@@ -1,7 +1,6 @@
 import numpy as np
-from supplied import read_as_grayscale, match_descriptors, extract_sift_features, extract_keypoint_matches, affine_warp
+from supplied import match_descriptors, extract_sift_features, extract_keypoint_matches, affine_warp, transform_coordinates
 from visualization import plot_matches
-import matplotlib.pyplot as plt
 
 def affine_test_case(N: int):
     np.random.seed(42)
@@ -95,12 +94,13 @@ def ransac_fit_affine(pts: np.ndarray, pts_tilde: np.ndarray, thresh: float, n_i
     A = None
     t = None
 
-    p = 0.9
+    # Assume our expectation 0.1
+    p = 0.1
     n = pts.shape[1]
     k = 0
 
     inliers_ratio = max(max_inliers / n, 0.5)
-    max_k = np.log(1 - p) / np.log(1 - inliers_ratio ** 3)
+    max_k = np.log(p) / np.log(1 - inliers_ratio ** 3)
 
     while k < min(max_k, n_iter):
         permutation = np.random.permutation(n)
@@ -118,7 +118,7 @@ def ransac_fit_affine(pts: np.ndarray, pts_tilde: np.ndarray, thresh: float, n_i
             A = A_est
             t = t_est
             inliers_ratio = max(max_inliers / n, 1e-6)
-            max_k = np.log(1-p) / np.log(1 - inliers_ratio ** 3)
+            max_k = np.log(p) / np.log(1 - inliers_ratio ** 3)
         k += 1
 
     return A, t
@@ -143,6 +143,109 @@ def align_images(source: np.ndarray, target: np.ndarray, thresh: float = 10, plo
 
     if plot:
         plot_matches(source, target, src_kp, tar_kp, m)
-        plt.show()
+
+    return warped
+
+
+def estimate_affine_ls(pts: np.ndarray, pts_tilde: np.ndarray):
+
+    A_list = []
+    b_list = []
+
+    n = pts.shape[1]
+
+    for i in range(n):
+        x, y = pts[:, i]
+        x_p, y_p = pts_tilde[:, i]
+
+        A_list.append([x, y, 0, 0, 1, 0])
+        A_list.append([0, 0, x, y, 0, 1])
+        b_list.append(x_p)
+        b_list.append(y_p)
+
+    right_A = np.array(A_list)
+    left_b = np.array(b_list)
+
+    h, _, _, _ = np.linalg.lstsq(right_A, left_b, rcond=None)
+
+    A = h[:4].reshape(2, 2)
+    t = h[4:].reshape(2, 1)
+
+    return A, t
+
+def ransac_fit_affine_ls(pts: np.ndarray, pts_tilde: np.ndarray, thresh: float, n_iter: int = 10000, max_inliers: int = 0):
+    # Assume our expectation 0.1
+    p = 0.1
+    n = pts.shape[1]
+    k = 0
+
+    inliers_ratio = max(max_inliers / n, 0.5)
+    max_k = np.log(p) / np.log(1 - inliers_ratio ** 3)
+    best_mask = None
+
+    while k < min(max_k, n_iter):
+        permutation = np.random.permutation(n)
+
+        shuffled_pts = pts[:, permutation]
+        shuffled_pts_tilde = pts_tilde[:, permutation]
+
+        A_est, t_est = estimate_affine(shuffled_pts, shuffled_pts_tilde)
+
+        lgths = residual_lgths(A_est, t_est, pts, pts_tilde)
+        mask = lgths < thresh
+        inliers_count = np.sum(mask)
+
+        if inliers_count > max_inliers:
+            max_inliers = inliers_count
+
+            inliers_ratio = max(max_inliers / n, 1e-6)
+            max_k = np.log(p) / np.log(1 - inliers_ratio ** 3)
+
+            best_mask = mask
+        k += 1
+
+    A_ls, t_ls = estimate_affine_ls(pts[:, best_mask], pts_tilde[:, best_mask])
+    return A_ls, t_ls
+
+def align_images_inlier_ls(source: np.ndarray, target: np.ndarray, thresh: float = 10, plot: bool = True):
+    src_kp, src_desc = extract_sift_features(source)
+    tar_kp, tar_desc = extract_sift_features(target)
+
+    gm, m = match_descriptors(src_desc, tar_desc)
+
+    pts_src, pts_tar = extract_keypoint_matches(src_kp, tar_kp, gm)
+
+    A_est, t_est = ransac_fit_affine_ls(pts_tar, pts_src, thresh=thresh)
+
+    T = np.vstack([np.hstack([A_est, t_est]), np.array([[0, 0, 1]])])
+
+    warped = affine_warp(source, T, target.shape)
+
+    if plot:
+        plot_matches(source, target, src_kp, tar_kp, m)
+
+    return warped
+
+
+def sample_image_at(image: np.ndarray, position):
+    x, y = position
+    xi, yi = int(x), int(y)
+
+    H, W = image.shape
+    if 0 <= yi < H and 0 <= xi < W:
+        return int(image[yi, xi])
+    else:
+        return 255
+
+def warp_16x16(source: np.ndarray):
+    H, W = 16, 16
+    warped = np.empty((H, W), dtype=source.dtype)
+
+    for y_t in range(H):
+        for x_t in range(W):
+
+            x_s, y_s = transform_coordinates((x_t, y_t))
+
+            warped[y_t, x_t] = sample_image_at(source, (x_s, y_s))
 
     return warped
