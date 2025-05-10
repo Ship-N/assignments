@@ -1,6 +1,7 @@
 import numpy as np
 from supplied import read_as_grayscale, match_descriptors, extract_sift_features, affine_warp
 from visualization import plot_matches
+import matplotlib.pyplot as plt
 
 def affine_test_case(N: int):
     np.random.seed(42)
@@ -145,6 +146,7 @@ def align_images(source: np.ndarray, target: np.ndarray, thresh: float = 10, plo
     warped = affine_warp(source, T, target.shape)
 
     if plot:
-        plot_matches(source, target, src_kp, tar_kp, gm)
+        plot_matches(source, target, src_kp, tar_kp, m)
+        plt.show()
 
     return warped
