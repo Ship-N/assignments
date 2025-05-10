@@ -1,5 +1,5 @@
 import numpy as np
-from supplied import read_as_grayscale, match_descriptors, extract_sift_features, affine_warp
+from supplied import read_as_grayscale, match_descriptors, extract_sift_features, extract_keypoint_matches, affine_warp
 from visualization import plot_matches
 import matplotlib.pyplot as plt
 
@@ -129,20 +129,16 @@ def align_images(source: np.ndarray, target: np.ndarray, thresh: float = 10, plo
 
     gm, m = match_descriptors(src_desc, tar_desc)
 
-    pts_src = np.array([src_kp[m[0].queryIdx].pt for m in gm]).T
-    pts_tar = np.array([tar_kp[m[0].trainIdx].pt for m in gm]).T
-
-    # print(pts_src)
-    # print(pts_src.shape)
+    pts_src, pts_tar = extract_keypoint_matches(src_kp, tar_kp, gm)
 
     A_est, t_est = ransac_fit_affine(pts_tar, pts_src, thresh=thresh)
-    # A_est, t_est = ransac_fit_affine( pts_src, pts_tar, thresh=thresh)
-    print(A_est)
-    print(t_est)
+
+    # print(A_est)
+    # print(t_est)
 
     T = np.vstack([np.hstack([A_est, t_est]), np.array([[0, 0, 1]])])
 
-    print(T)
+    # print(T)
     warped = affine_warp(source, T, target.shape)
 
     if plot:

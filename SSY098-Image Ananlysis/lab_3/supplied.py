@@ -190,6 +190,9 @@ def affine_warp(source: np.ndarray, affine_matrix: np.ndarray, target_shape: np.
     """
 
     # Use OpenCV to warp the image
+    # cv2.WARP_INVERSE_MAP这个参数是告诉我们affine_matrix的方向的
+    # 有的时候，表示affine_matrix是target → source
+    # 没有的时候，表示affine_matrix是source → target
     warped = cv2.warpPerspective(source, affine_matrix, (target_shape[1], target_shape[0]), flags=cv2.WARP_INVERSE_MAP)  # <-- flag tells OpenCV that we are giving a target → source mapping, i.e. backward warping
 
     return warped
