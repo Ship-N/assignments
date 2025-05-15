@@ -13,7 +13,7 @@ def triangulation_test_case(noise):
     - us: 2x2 numpy array of noisy 2D image points (one column per camera)
     - U_true: 3x1 numpy array representing the true 3D point
     """
-    np.random.seed(42)
+    # np.random.seed(65)
 
     # Ground truth 3D point
     U_true = np.random.rand(3, 1)
