@@ -100,7 +100,7 @@ def ransac_triangulation(Ps, us, threshold):
 
     Ps = np.stack(Ps)
     n = len(Ps)
-    # for i in range(5000):
+
     for i, j in itertools.combinations(range(n), 2):
         index = [i, j]
         shuffled_Ps = Ps[index]
@@ -110,9 +110,8 @@ def ransac_triangulation(Ps, us, threshold):
 
         errors = reprojection_errors(Ps, us, estimate_U)
 
-        outlier = (errors > threshold) | np.isinf(errors)
-        nbr_outlier = outlier.sum()
-        temp_nbr_inliers = outlier.size - nbr_outlier
+        inlier = errors < threshold
+        temp_nbr_inliers = inlier.sum()
 
         if temp_nbr_inliers > nbr_inliers:
             nbr_inliers = temp_nbr_inliers
