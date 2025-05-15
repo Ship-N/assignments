@@ -119,3 +119,96 @@ def ransac_triangulation(Ps, us, threshold):
             best_U = estimate_U
 
     return best_U, nbr_inliers
+
+
+def compute_residuals(Ps, us, U):
+    """
+    Ps: list of camera matrices (each 3x4 numpy array)
+    us: 2xN numpy array of observed image coordinates
+    U: 3D point as a numpy array of shape (3,)
+
+    Returns:
+    - all_residuals: (2N,) numpy array of residuals (x and y reprojection errors)
+    """
+
+    # Your code here
+    residuals = []
+
+    U_new = np.append(U, 1)
+    n = len(Ps)
+
+    for i in range(n):
+        p = Ps[i]
+
+        estimate_x = p @ U_new
+
+        error = us[:, i] - [estimate_x[0] / estimate_x[2], estimate_x[1] / estimate_x[2]]
+        residuals.append((error))
+
+    all_residuals = np.concatenate(residuals)
+
+    return all_residuals
+
+def compute_jacobian(Ps, U):
+    """
+    Ps: list of camera matrices (each 3x4 numpy array)
+    U: 3D point as a numpy array of shape (3,)
+
+    Returns:
+    - jacobian: (2N x 3) numpy array, Jacobian matrix of reprojection errors w.r.t. U
+    """
+
+    # Your code here
+    jacobian_list = []
+    n = len(Ps)
+    U_new = np.append(U, 1)
+    for i in range(n):
+        a, b, c = Ps[i]
+        A = a @ U_new
+        B = b @ U_new
+        C = c @ U_new
+
+        x = -(C * a - A * c) / (C * C)
+        y = -(C * b - B * c) / (C * C)
+
+
+        jacobian_list.append(x[:3])
+        jacobian_list.append(y[:3])
+
+    jacobian = np.vstack(jacobian_list)
+
+    return jacobian
+
+def refine_triangulation(Ps, us, Uhat, iterations=5):
+    """
+    Refines a 3D point estimate using Gauss-Newton optimization.
+
+    Parameters:
+    - Ps: list of camera matrices (3x4 numpy arrays)
+    - us: 2xN numpy array of 2D image points
+    - Uhat: initial estimate of the 3D point (3,)
+    - iterations: number of Gauss-Newton iterations (default: 5)
+
+    Returns:
+    - U: refined 3D point (3,)
+    """
+
+    # Your code here
+    x = Uhat
+
+    for i in range(iterations):
+        r = compute_residuals(Ps, us, x) # 2N
+        j = compute_jacobian(Ps, x) # 2N x 3
+
+        loss = np.sum(r ** 2)
+        print(f"Iteration {i}: The sum of squared residuals: {loss}")
+
+        gradient = j.T @ r # 3x
+        step = np.linalg.inv(j.T @ j) # 3x3
+
+        x -= step @ gradient
+
+    print("Iteration End=======================")
+    U_temp = x
+
+    return U_temp
